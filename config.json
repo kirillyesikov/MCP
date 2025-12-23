@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+      "server": {
+        "command": "D:/kirill/mcpserver/mcp/server",
+        "args": [],
+        "env": { 
+          "dependencies": ["node-fetch"]
+        }
+    }
+  }
+} 
