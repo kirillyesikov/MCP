@@ -143,8 +143,6 @@ func main() {
 
 }
 
-var url = "http:\\localhost:8080"
-
 func mustPostMessage(msg, url string) string {
 	req := orFatal(http.NewRequest("POST", url, strings.NewReader(msg)))
 	req.Header["Content-Type"] = []string{"application/json"}
