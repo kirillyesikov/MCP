@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strconv"
 	"strings"
@@ -62,16 +61,18 @@ func main() {
 	}, Add)
 
 	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
+
+		defer r.Body.Close()
+
+		scanner := bufio.NewScanner(r.Body)
+
+		for scanner.Scan() {
+			fmt.Println(len(scanner.Bytes()) == 6)
+		}
 		return server
-	}, &mcp.StreamableHTTPOptions{JSONResponse: true})
-
-	httpServer := httptest.NewServer(handler)
-
-	defer httpServer.Close()
-
-	resp := mustPostMessage(`{"jsonrpc": "2.0", "id": 1, "method":"initialize", "params": {}}`, httpServer.URL)
-
-	fmt.Println(resp)
+	},
+		&mcp.StreamableHTTPOptions{JSONResponse: true},
+	)
 
 	go func() {
 		port := ":8080"
@@ -125,6 +126,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+
 		defer session.Close()
 
 		// Call the "add" tool
@@ -138,15 +140,22 @@ func main() {
 		}
 
 		fmt.Println("Result:", res.Content[0].(*mcp.TextContent).Text)
-
+		resp := mustPostMessage(`{"jsonrpc": "2.0", "id": 1, "method":"initialize", "params": {}}`, "http://localhost:8080")
+		fmt.Println(resp)
 	}
 
 }
 
 func mustPostMessage(msg, url string) string {
-	req := orFatal(http.NewRequest("POST", url, strings.NewReader(msg)))
+
+	msg = "{\"apple\": \"green\"}" // Example JSON payload as a string
+	// strings.NewReader returns an io.Reader that reads from the string 'msg'
+	bodyReader := strings.NewReader(msg)
+
+	req := orFatal(http.NewRequest("POST", "http://localhost:8080", bodyReader))
 	req.Header["Content-Type"] = []string{"application/json"}
 	req.Header["Accept"] = []string{"application/json", "text/event-stream"}
+
 	resp := orFatal(http.DefaultClient.Do(req))
 	defer resp.Body.Close()
 	body := orFatal(io.ReadAll(resp.Body))
