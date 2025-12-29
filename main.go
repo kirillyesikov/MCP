@@ -48,7 +48,7 @@ func main() {
 	server := mcp.NewServer(&mcp.Implementation{Name: "server", Version: "v0.1.0", WebsiteURL: "http://localhost:8080"}, nil)
 
 	server.AddTool(&mcp.Tool{
-		Name:        "add",
+		Name:        "Tool",
 		Description: "Add two integers",
 		InputSchema: map[string]any{
 			"type": "object",
