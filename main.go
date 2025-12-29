@@ -79,6 +79,7 @@ func main() {
 		fmt.Println("✅ MCP server running at http://localhost" + port)
 		log.Fatal(http.ListenAndServe(port, handler))
 	}()
+
 	time.Sleep(200 * time.Millisecond)
 
 	reader := bufio.NewReader(os.Stdin)
@@ -114,24 +115,45 @@ func main() {
 			continue
 		}
 
+		// Transport
+
 		client := mcp.NewClient(&mcp.Implementation{Name: "client", Version: "v0.0.1"}, nil)
+
+		//Transport
 
 		ctx := context.Background()
 
-		t1, t2 := mcp.NewInMemoryTransports()
+		transport, t1 := mcp.NewInMemoryTransports()
+
 		if _, err := server.Connect(ctx, t1, nil); err != nil {
 			log.Fatal(err)
 		}
-		session, err := client.Connect(ctx, t2, nil)
+
+		// Optionally, you can inject a custom http.Client for more control
+		// transport.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
+
+		session, err := client.Connect(ctx, transport, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
-
 		defer session.Close()
+
+		log.Printf("Connected to server (session ID: %s)", session.ID())
+
+		// First, list available tools.
+		log.Println("Listing available tools...")
+		toolsResult, err := session.ListTools(ctx, nil)
+		if err != nil {
+			log.Fatalf("Failed to list tools: %v", err)
+		}
+
+		for _, tool := range toolsResult.Tools {
+			log.Printf("  - %s: %s\n", tool.Name, tool.Description)
+		}
 
 		// Call the "add" tool
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
-			Name:      "add",
+			Name:      "Tool",
 			Arguments: map[string]any{"x": x, "y": y},
 		})
 		if err != nil {
@@ -140,8 +162,8 @@ func main() {
 		}
 
 		fmt.Println("Result:", res.Content[0].(*mcp.TextContent).Text)
-		resp := mustPostMessage(`{"jsonrpc": "2.0", "id": 1, "method":"initialize", "params": {}}`, "http://localhost:8080")
-		fmt.Println(resp)
+		resp := mustPostMessage("{\"apple\": \"green\"}", "http://localhost:8080")
+		println(resp)
 	}
 
 }
@@ -155,12 +177,12 @@ func mustPostMessage(msg, url string) string {
 	req := orFatal(http.NewRequest("POST", "http://localhost:8080", bodyReader))
 	req.Header["Content-Type"] = []string{"application/json"}
 	req.Header["Accept"] = []string{"application/json", "text/event-stream"}
-
 	resp := orFatal(http.DefaultClient.Do(req))
+
 	defer resp.Body.Close()
+
 	body := orFatal(io.ReadAll(resp.Body))
 	return string(body)
-
 }
 
 func orFatal[T any](t T, err error) T {
