@@ -11,16 +11,40 @@ import (
 	"os"
 	"strconv"
 	"strings"
-
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// text/event-stream, just so the output below doesn't use random event ids
 type AddParams struct {
 	X int `json:"x"`
 	Y int `json:"y"`
+}
+
+//UserSession handling
+
+type UserSession struct {
+	id   string
+	data map[string]interface{}
+	mu   sync.RWMutex
+}
+
+func (s *UserSession) SessionID() string {
+	return s.id
+}
+
+func (s *UserSession) Get(key string) (interface{}, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	val, ok := s.data[key]
+	return val, ok
+}
+
+func (s *UserSession) Set(key string, value interface{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data[key] = value
 }
 
 func Add(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -44,6 +68,21 @@ func Add(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, er
 	}, nil
 }
 
+var sessions sync.Map
+
+func getSession(r *http.Request) *UserSession {
+	id := r.Header.Get("X-Client-ID")
+	if id == "" {
+		id = r.RemoteAddr
+	}
+
+	session, _ := sessions.LoadOrStore(id, &UserSession{
+		id:   id,
+		data: make(map[string]interface{}),
+	})
+	return session.(*UserSession)
+}
+
 func main() {
 	server := mcp.NewServer(&mcp.Implementation{Name: "server", Version: "v0.1.0", WebsiteURL: "http://localhost:8080"}, nil)
 
@@ -61,6 +100,9 @@ func main() {
 	}, Add)
 
 	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
+
+		session := getSession(r)
+		log.Printf("Client Connected to server (session ID: %s)", session.SessionID())
 
 		defer r.Body.Close()
 
@@ -103,9 +145,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer session.Close()
 
-	log.Printf("Connected to server (session ID: %s)", session.ID())
+	log.Printf("Client Connected to server (session ID: %s)", session.ID())
 
 	// First, list available tools.
 	log.Println("Listing available tools...")
