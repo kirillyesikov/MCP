@@ -82,6 +82,42 @@ func main() {
 
 	time.Sleep(200 * time.Millisecond)
 
+	// Transport
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "client", Version: "v0.0.1"}, nil)
+
+	//Transport
+
+	ctx := context.Background()
+
+	transport, t1 := mcp.NewInMemoryTransports()
+
+	if _, err := server.Connect(ctx, t1, nil); err != nil {
+		log.Fatal(err)
+	}
+
+	// Optionally, you can inject a custom http.Client for more control
+	// transport.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
+
+	session, err := client.Connect(ctx, transport, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer session.Close()
+
+	log.Printf("Connected to server (session ID: %s)", session.ID())
+
+	// First, list available tools.
+	log.Println("Listing available tools...")
+	toolsResult, err := session.ListTools(ctx, nil)
+	if err != nil {
+		log.Fatalf("Failed to list tools: %v", err)
+	}
+
+	for _, tool := range toolsResult.Tools {
+		log.Printf("  - %s: %s\n", tool.Name, tool.Description)
+	}
+
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
@@ -113,42 +149,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("invalid Y: %v", err)
 			continue
-		}
-
-		// Transport
-
-		client := mcp.NewClient(&mcp.Implementation{Name: "client", Version: "v0.0.1"}, nil)
-
-		//Transport
-
-		ctx := context.Background()
-
-		transport, t1 := mcp.NewInMemoryTransports()
-
-		if _, err := server.Connect(ctx, t1, nil); err != nil {
-			log.Fatal(err)
-		}
-
-		// Optionally, you can inject a custom http.Client for more control
-		// transport.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
-
-		session, err := client.Connect(ctx, transport, nil)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer session.Close()
-
-		log.Printf("Connected to server (session ID: %s)", session.ID())
-
-		// First, list available tools.
-		log.Println("Listing available tools...")
-		toolsResult, err := session.ListTools(ctx, nil)
-		if err != nil {
-			log.Fatalf("Failed to list tools: %v", err)
-		}
-
-		for _, tool := range toolsResult.Tools {
-			log.Printf("  - %s: %s\n", tool.Name, tool.Description)
 		}
 
 		// Call the "add" tool
